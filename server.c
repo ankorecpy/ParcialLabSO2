@@ -29,7 +29,7 @@ int main(int argc, char * argv[]) {
   struct sockaddr_in c_addr; /* Direccion de IPv4 */
 
   socklen_t c_addr_len;
-  int val;
+  int val, descriptorArchivo;
   int finished;
   pthread_t hilo_transferencia;
 
@@ -85,10 +85,9 @@ int main(int argc, char * argv[]) {
 //Funcion que realiza la comunicacion con el cliente
 void * transferencia(void * conexion) {
   header h;
-  char * rutaArchivoRecibido;
   int finished;
   char buf[BUFSIZ];
-  int n, descriptorArchivo, longitudRuta;
+  int n, descriptorArchivo, longitudRuta, bytesEscritos;
   //Comunicacion con el cliente
   //1. Obtener la informacion del archivo a recibir
   if (read(conexion, &h, sizeof(header)) != sizeof(header)) {
@@ -96,22 +95,28 @@ void * transferencia(void * conexion) {
     close(conexion);
     return;
   }
-crearArchivo(h.nombreArchivo, h.identificacionEstudiantes);
+descriptorArchivo = crearArchivo(h.nombreArchivo, h.identificacionEstudiantes);
 
-printf("Ruta a guardar %s\n", rutaArchivoRecibido);
 
   //enviar a la salida estandar la informacion del cliente
   fprintf(stdout, "\nRecibiendo archivo %s - Enviado por %s - Tamanio %d\n\n", h.nombreArchivo, h.identificacionEstudiantes, h.tamanio);
   //2. Leer los datos del archivo enviados por el socket
   finished = 0;
   while(!finished) {
+    memset(&buf, 0, BUFSIZ);
     n = read(conexion, buf, BUFSIZ); //Leer del socket
     if (n <= 0) {
       finished = 1;
-    }else {
-      write(1, buf, n); //Enviar a la salida estandar
+    } else {
+	printf("leido %d,\n\n%s\n", n, buf);
+      bytesEscritos = write(descriptorArchivo, &buf, BUFSIZ); //Enviar a la salida estandar
+
     }
+if (bytesEscritos == -1) {
+	printf("\n\tERROR!!!!\n");
+}
   }
+  close(descriptorArchivo);
 }
 
 int crearArchivo(char * nombreArchivo, char * identificacionEstudiantes) {
@@ -136,20 +141,20 @@ int crearArchivo(char * nombreArchivo, char * identificacionEstudiantes) {
   printf("longitud %d\n", strlen(bufferFecha));
   printf("%s\n", nombreArchivo);
 
-  if ((descriptorArchivo = open(rutaAlmacenamiento, O_CREAT, 00660)) == -1) {
-	numeroAleatorio = rand() % 9999;	
-  rutaAlmacenamiento = (char *)malloc(longitudRuta);
-  memset(rutaAlmacenamiento, 0, longitudRuta);
+  if ((descriptorArchivo = open(rutaAlmacenamiento, O_CREAT | O_WRONLY, 00660)) == -1) {
+  numeroAleatorio = rand() % 9999;	
+  sprintf(cadenaNumero, "%d", numeroAleatorio);
+  rutaAlmacenamiento = (char *)malloc(longitudRuta + 7);
+  memset(rutaAlmacenamiento, 0, longitudRuta + 7);
   strcpy(rutaAlmacenamiento, "recibidos/");
   strcat(rutaAlmacenamiento, nombreArchivo);
+  strcat(rutaAlmacenamiento, cadenaNumero);
   strcat(rutaAlmacenamiento, "_");
   strcat(rutaAlmacenamiento, identificacionEstudiantes);
   strcat(rutaAlmacenamiento, "_");
-  strftime(bufferFecha, 20,"%d_%m_%Y_%H_%M_%S",local);
   strcat(rutaAlmacenamiento, bufferFecha);
+  printf("Nueva Ruta de Almacenamiento %s\n", rutaAlmacenamiento);
   }
 
-//borrar despues de realizar pruebas
-  exit(EXIT_SUCCESS);
-  return 0;
+  return descriptorArchivo;
 }

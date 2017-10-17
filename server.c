@@ -8,9 +8,11 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <time.h>
+#include <semaphore.h>
 
 #define BUFSIZE 255
 
+typedef sem_t semaforo;
 //Encabezado que se recibe del cliente con la iformación del archivo
 typedef struct {
 	char identificacionEstudiantes[BUFSIZE];
@@ -19,14 +21,18 @@ typedef struct {
 }header;
 
 int crearArchivo(char * nombreArchivo, char * identificacionEstudiantes);
+void obtenerNuevoNombre(char * nombreArchivo);
 //Funcion que realiza la comunicacion con el cliente
 void * transferencia(void *);
+
+semaforo mutex;
 
 int main(int argc, char * argv[]) {
 	int _socket;
 	int conexion;
 	struct sockaddr_in addr; /* Direccion de IPv4 */
 	struct sockaddr_in c_addr; /* Direccion de IPv4 */
+	sem_init(&mutex, 0, 1); 
 
 	socklen_t c_addr_len;
 	int val, descriptorArchivo;
@@ -81,13 +87,12 @@ int main(int argc, char * argv[]) {
 	exit(EXIT_SUCCESS);
 }
 
-
 //Funcion que realiza la comunicacion con el cliente
 void * transferencia(void * conexion) {
 	header encabezado;
 	int finalizacion = 0;
 	char buf[BUFSIZ];
-	int n, descriptorArchivo, longitudRuta, bytesEscritos;
+	int n, descriptorArchivo, bytesEscritos;
   //Comunicacion con el cliente
   //1. Obtener la informacion del archivo a recibir
 	if (read(conexion, &encabezado, sizeof(header)) != sizeof(header)) {
@@ -97,6 +102,7 @@ void * transferencia(void * conexion) {
 	}
 	descriptorArchivo = crearArchivo(encabezado.nombreArchivo, encabezado.identificacionEstudiantes);
 
+	printf("descriptor %d", descriptorArchivo);
   //enviar a la salida estandar la informacion del cliente
 	fprintf(stdout, "\nRecibiendo archivo %s - Enviado por %s - Tamanio %d\n\n", encabezado.nombreArchivo, encabezado.identificacionEstudiantes, encabezado.tamanio);
   //2. Leer los datos del archivo enviados por el socket
@@ -106,48 +112,82 @@ void * transferencia(void * conexion) {
 		if (n <= 0) {
 			finalizacion = 1;
 		} else {
-			bytesEscritos = write(descriptorArchivo, &buf, BUFSIZ); //Enviar a la salida estandar
+			bytesEscritos = write(descriptorArchivo, &buf, BUFSIZ);
 		}
 	}
 	close(descriptorArchivo);
 }
 
 int crearArchivo(char * nombreArchivo, char * identificacionEstudiantes) {
-	int longitudRuta, descriptorArchivo, numeroAleatorio, tamanioPrimerBuffer, tamanioSegundoBuffer;
+	int longitudRuta, descriptorArchivo = 0, tamanioPrimerBuffer, tamanioSegundoBuffer;
 	time_t tiempo = time(0);
 	struct tm * local = localtime(&tiempo);
-	char bufferFecha[20], * rutaAlmacenamiento, cadenaNumero[5] = "\0", * segundoBuffer, * primerBuffer;
+	char bufferFecha[20], * rutaAlmacenamiento, * segundoBuffer, * primerBuffer, * copiaNombre;
 
 	strftime(bufferFecha, 20,"%d_%m_%Y_%H_%M_%S", local);
+
 	tamanioPrimerBuffer = strlen(nombreArchivo) + 12;
 	tamanioSegundoBuffer = strlen(bufferFecha) + strlen(identificacionEstudiantes) + 1;
 	primerBuffer = (char *)malloc(tamanioPrimerBuffer);
+
+	memset(primerBuffer, 0, tamanioPrimerBuffer);
+	sprintf(primerBuffer, "recibidos/%s", nombreArchivo);
+
 	segundoBuffer = (char *)malloc(tamanioSegundoBuffer);
-	strcpy(segundoBuffer, "_");
-	strcat(segundoBuffer, identificacionEstudiantes);
-	strcat(segundoBuffer, "_");
-	strcat(segundoBuffer, bufferFecha);
-	strcpy(primerBuffer, "recibidos/");
-	strcat(primerBuffer, nombreArchivo);
+	memset(segundoBuffer, 0, tamanioSegundoBuffer);
+	sprintf(segundoBuffer, "_%s_%s", identificacionEstudiantes, bufferFecha);
+
+	printf("tamanio segundo Buffer [%d] [%s]\n\n", tamanioSegundoBuffer, segundoBuffer);
 	longitudRuta = tamanioPrimerBuffer + tamanioSegundoBuffer;
 	rutaAlmacenamiento = (char *)malloc(longitudRuta);
 	memset(rutaAlmacenamiento, 0, longitudRuta);
-	strcpy(rutaAlmacenamiento, primerBuffer);
-	strcat(rutaAlmacenamiento, segundoBuffer);
+	sprintf(rutaAlmacenamiento, "%s%s", primerBuffer, segundoBuffer);
 
-  //borrar estas impresiones luego
 	printf("Ruta de almacenamiento %s\n", rutaAlmacenamiento);
 
-	if ((descriptorArchivo = open(rutaAlmacenamiento, O_CREAT | O_WRONLY, 00660)) == -1) {
-		numeroAleatorio = rand() % 9999;	
-		sprintf(cadenaNumero, "%d", numeroAleatorio);
-		rutaAlmacenamiento = (char *)malloc(longitudRuta + 4);
-		memset(rutaAlmacenamiento, 0, longitudRuta + 4);
-		strcpy(rutaAlmacenamiento, primerBuffer);
-		strcat(rutaAlmacenamiento, nombreArchivo);
-		strcat(rutaAlmacenamiento, cadenaNumero);
-		strcat(rutaAlmacenamiento, segundoBuffer);
+	sem_wait(&mutex);
+	descriptorArchivo = open(rutaAlmacenamiento, O_CREAT | O_EXCL | O_WRONLY, 00660);
+	sem_post(&mutex);
+	while (descriptorArchivo == -1) {
+		copiaNombre = (char *)malloc(strlen(nombreArchivo));
+	        memset(copiaNombre, 0, strlen(nombreArchivo));	
+		sprintf(copiaNombre, "%s", nombreArchivo);
+		obtenerNuevoNombre(primerBuffer);
+		rutaAlmacenamiento = (char *)malloc(strlen(copiaNombre) + strlen(segundoBuffer));
+		memset(rutaAlmacenamiento, 0,strlen(primerBuffer) + strlen(segundoBuffer));
+		sprintf(rutaAlmacenamiento, "%s%s", primerBuffer, segundoBuffer);
 		printf("Nueva Ruta de Almacenamiento %s\n", rutaAlmacenamiento);
+		sem_wait(&mutex);
+		descriptorArchivo = open(rutaAlmacenamiento, O_CREAT | O_WRONLY, 00660);
+		sem_post(&mutex);
 	}
-  return descriptorArchivo;
+	return descriptorArchivo;
 }
+
+void obtenerNuevoNombre(char * nombreArchivo) {
+	char * nombre, * extension, cadenaNumero[10];
+	int indice = 0, numeroAleatorio = 0, longitud = 0;
+	memset(&cadenaNumero, 0, 10);
+	numeroAleatorio = rand() % 999999999;
+	sprintf(cadenaNumero, "%d", numeroAleatorio);
+	extension = strchr(nombreArchivo, '.');
+	longitud = strlen(cadenaNumero);
+	longitud++;
+	if (extension != NULL) {
+		indice = extension - nombreArchivo + 1;
+		strncpy(nombre, nombreArchivo, indice);		
+		longitud += strlen(nombre) + strlen(extension);
+		nombreArchivo = (char *)malloc(longitud);
+		memset(nombreArchivo, 0, longitud);
+		sprintf(nombreArchivo, "%s_%s%s", nombre, cadenaNumero, extension);
+	} else {
+		longitud += strlen(nombreArchivo);
+		nombre = (char *)malloc(strlen(nombreArchivo));
+		memset(nombre, 0, strlen(nombreArchivo));
+		sprintf(nombre, "%s", nombreArchivo);
+		nombreArchivo = (char *)malloc(longitud);
+		memset(nombreArchivo, 0, longitud);
+		sprintf(nombreArchivo, "%s_%s%s", nombre, cadenaNumero, extension);
+	}
+}
+

@@ -10,7 +10,7 @@
 
 #define BUFSIZE 255
 
-void extraerIndiceNombreArchivo(char * rutaArchivo);
+void extraerNombreArchivo(char * rutaArchivo);
 
 typedef struct {
   char identificacionEstudiantes[BUFSIZE];
@@ -38,7 +38,7 @@ int main(int argc, char * argv[]) {
 
   //Verificar que el archivo sea regular y se pueda leer
   if (!S_ISREG(st.st_mode) || !(st.st_mode & S_IRUSR)) {
-    fprintf(stderr, "Archivo %s no valido\n", argv[2]);
+    fprintf(stderr, "Archivo %s no valido\n", argv[3]);
     exit(EXIT_FAILURE);
   }
 
@@ -76,7 +76,7 @@ int main(int argc, char * argv[]) {
   strcpy(h.nombreArchivo, argv[3]); //Nombre del archivo
   h.tamanio = st.st_size; //Tamaño del archivo obtenido por stat
 
-  extraerIndiceNombreArchivo(h.nombreArchivo);
+  extraerNombreArchivo(h.nombreArchivo);
 
   //Enviar el encabezado
   write(s, &h, sizeof(header));
@@ -87,9 +87,8 @@ int main(int argc, char * argv[]) {
     bytesEnviados += n;
     if (n > 0) {
       write(s, buf, n);
-    } else {
-      printf("Enviado %d de %d\n", bytesEnviados, st.st_size);
-    }
+    } 
+    printf("Enviado %d de %d\n", bytesEnviados, st.st_size);
   }while (n > 0);
 
   if(bytesEnviados == st.st_size) {
@@ -104,12 +103,12 @@ int main(int argc, char * argv[]) {
   exit(EXIT_SUCCESS);
 }
 
-void extraerIndiceNombreArchivo(char * rutaArchivo) {
+void extraerNombreArchivo(char * rutaArchivo) {
 	char * subcadena;	
 	int indice;
 	subcadena = strrchr(rutaArchivo, '/');
 	if (subcadena != NULL) {
-		indice = subcadena-rutaArchivo+1;
+		indice = subcadena - rutaArchivo + 1;
 		subcadena = strchr(subcadena, rutaArchivo[indice]);
 		strcpy(rutaArchivo, subcadena);
 	}

@@ -1,3 +1,8 @@
+/**
+ * @author German David Garcia <garciagd@unicauca.edu.co> Alejandro Mendez Astudillo <victoralemendez@unicauca.edu.co>
+ * 
+ * @brief Envia un archivo a un servidor
+ * */
 #include <fcntl.h>
 #include <netinet/in.h>
 #include <stdio.h>
@@ -10,6 +15,11 @@
 
 #define BUFSIZE 255
 
+/**
+ * @brief Separa y extrae el nombre del archivo de su extension, si la tiene.
+ *
+ * rutaArchivo rutaArchivo ruta absoluta/relativa del archivo 
+ * */
 void extraerNombreArchivo(char * rutaArchivo);
 
 typedef struct {
@@ -20,7 +30,8 @@ typedef struct {
 
 int main(int argc, char * argv[]) {
   int s, bytesEnviados = 0, fd, n;
-  struct sockaddr_in addr; /* Direccion de IPv4 */
+  //Direccion de OPv4
+  struct sockaddr_in addr;
   struct stat st;
   header h;
   char buf[BUFSIZ];
@@ -56,13 +67,11 @@ int main(int argc, char * argv[]) {
   memset(&addr, 0, sizeof(struct sockaddr_in));
   addr.sin_family = AF_INET;
   addr.sin_port = htons(2510);
-  //addr.sin_addr.s_addr = INADDR_LOOPBACK; //Conexion a 127.0.0.1
   //Asignar la dirección AAA.BBB.CCC.DDD pasada por linea de comandos
   if (inet_aton(argv[1], &addr.sin_addr) == 0) {
     perror("inet_aton");
     exit(EXIT_FAILURE);
   }
-
 
   //Conectarse al servidor
   if (connect(s, (struct sockaddr *)&addr, sizeof(struct sockaddr_in)) == -1) {
@@ -73,15 +82,15 @@ int main(int argc, char * argv[]) {
   //Configurar el encabezado
   memset(&h, 0, sizeof(header));
   strcpy(h.identificacionEstudiantes, argv[2]);
-  strcpy(h.nombreArchivo, argv[3]); //Nombre del archivo
-  h.tamanio = st.st_size; //Tamaño del archivo obtenido por stat
+  strcpy(h.nombreArchivo, argv[3]);
+  h.tamanio = st.st_size;
 
   extraerNombreArchivo(h.nombreArchivo);
 
   //Enviar el encabezado
   write(s, &h, sizeof(header));
 
-  //enviar el contenido del archivo!!
+  //enviar el contenido del archivo
   do {
     n = read(fd, buf, BUFSIZ);
     bytesEnviados += n;
@@ -97,8 +106,10 @@ int main(int argc, char * argv[]) {
 	  printf("El archivo no se envió en su totalidad. Intente de nuevo");
   }
 
-  close(fd); //Cerrar el archivo
-  close(s); //Cerrar el socket
+  //cerrar el archivo
+  close(fd); 
+  //cerrar el socket
+  close(s); 
 
   exit(EXIT_SUCCESS);
 }

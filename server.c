@@ -1,3 +1,9 @@
+/**
+ * @author German David Garcia <garciagd@unicauca.edu.co> Alejandro Mendez Astudillo <victoralemendez@unicauca.edu.co>
+ * 
+ * @brief Recibe y almacena archivos enviados por los clientes
+ *
+ * */
 #include <netinet/in.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -20,10 +26,34 @@ typedef struct {
 	size_t tamanio;
 }header;
 
+/** 
+ * @brief Crea un archivo en la ruta especificada con permisos de lectura y escritura para el usuario y su grupo, ningun permiso para otros, retorna el descriptor del archivo creado.
+ *
+ * @param ruta direccion del archivo a crear
+ * */
 int crearArchivoCon(char * ruta);
+
+/**
+ * @brief Crea y configura la ruta del archivo a crear, el archivo se crea en el directorio /recibidos que se encuentra ubicado en directorio actual, hace uso de la funcion crearArchivoCon(char * ruta), en caso de ya existir el archivo se hace uso de la funcion crearArchivoNumero(char * nombreArchivo, char * identificacionEstudiantes), hasta que sea posible la creacion del archivo. 
+ *
+ * @param nombreArchivo Cadena de caracteres llena con el nombre del archivo y/o su extension
+ * @param identificacionEstudiantes Cadena de caracteres llena con el/los codigos de los estudiantes. 
+ * */
 int crearArchivo(char * nombreArchivo, char * identificacionEstudiantes);
+
+/**
+ * @brief Crea un archivo en el directorio /recibidos con el nombre <nombreArchivo>NumeroAleatorio[<extension>]<complementoDatos> 
+ *
+ * @param nombreArchivo Cadena de caracteres llena con el nombre del archivo y/o su extension
+ * @param identificacionEstudiantes Cadena de caracteres llena con el/los codigos de los estudiantes.
+ * */
 int crearArchivoNumero(char * nombreArchivo, char * complementoDatos);
-//Funcion que realiza la comunicacion con el cliente
+
+/**
+ * @brief funcion encargada de procesas los archivos recibidos.
+ *
+ * @param * conexion recibida
+ * */
 void * transferencia(void *);
 
 semaforo mutex;
@@ -40,41 +70,41 @@ int main(int argc, char * argv[]) {
 	int finalizacion;
 	pthread_t hilo_transferencia;
 
-  //Crear el socket
-	_socket = socket(PF_INET, SOCK_STREAM, 0);
+        //Crear el socket
+	_socket = socket(PF_INET, SOCK_STREAM, 0);         
 
-  //Configurar el socket para reutilizar la direccion
+        //Configurar el socket para reutilizar la direccion
 	val = 1;
 	if (setsockopt(_socket, SOL_SOCKET, SO_REUSEADDR, &val, sizeof(int)) == -1) {
 		perror("setsockopt");
 		exit(EXIT_FAILURE);
 	}
 
-//Rellenar con ceros
+        //Rellenar con ceros
 	memset(&addr, 0, sizeof(struct sockaddr_in));
 	addr.sin_family = AF_INET;
 	addr.sin_port = htons(2510);
 	addr.sin_addr.s_addr = INADDR_ANY; //En todas las direcciones
 
-//Asociar la direccion INDARR_ANY y el puerto 2510 al socket
+        //Asociar la direccion INDARR_ANY y el puerto 2510 al socket
 	if (bind(_socket, (struct sockaddr *)&addr, sizeof(struct sockaddr_in)) == -1) {
 		perror("bind");
 		exit(EXIT_FAILURE);
 	}
 
-  //Manifestar el deseo de recibir conexiones
+        //Manifestar el deseo de recibir conexiones
   	if (listen(_socket, 100) == -1) {
 		perror("listen");
 		exit(EXIT_FAILURE);
 	}
 
-  //Variable que controla el servidor
+        //Variable que controla el servidor
 	finalizacion = 0;
 
 	while (!finalizacion) {
-    //Bloquearse hasta que se reciba una conexion
 		printf("Esperando conexion\n");
 		c_addr_len = sizeof(struct sockaddr_in);
+                //Bloquearse hasta que se reciba una conexion
 		conexion = accept(_socket, (struct sockaddr *)&c_addr, &c_addr_len);
 		if (conexion == -1) {
 			perror("accept");
@@ -82,8 +112,8 @@ int main(int argc, char * argv[]) {
 		}
 		pthread_create(&hilo_transferencia, 0, transferencia, (void *)conexion);
 	}
-
-	close(_socket); //Cerrar el socket
+	//cerrar el socket
+	close(_socket); 
 	fprintf(stderr, "Server finished\n");
 	exit(EXIT_SUCCESS);
 }
@@ -94,8 +124,8 @@ void * transferencia(void * conexion) {
 	int finalizacion = 0;
 	char buf[BUFSIZ];
 	int n, descriptorArchivo, bytesEscritos;
-  //Comunicacion con el cliente
-  //1. Obtener la informacion del archivo a recibir
+        //Comunicacion con el cliente
+        //Obtener la informacion del archivo a recibir
 	if (read(conexion, &encabezado, sizeof(header)) != sizeof(header)) {
 		fprintf(stderr, "Error al recibir el encabezado\n");
 		close(conexion);
@@ -103,13 +133,13 @@ void * transferencia(void * conexion) {
 	}
 	descriptorArchivo = crearArchivo(encabezado.nombreArchivo, encabezado.identificacionEstudiantes);
 
-	printf("descriptor %d", descriptorArchivo);
-  //enviar a la salida estandar la informacion del cliente
+        //enviar a la salida estandar la informacion del cliente
 	fprintf(stdout, "\nRecibiendo archivo %s - Enviado por %s - Tamanio %d\n\n", encabezado.nombreArchivo, encabezado.identificacionEstudiantes, encabezado.tamanio);
-  //2. Leer los datos del archivo enviados por el socket
+        //Leer los datos del archivo enviados por el socket
 	while(!finalizacion) {
 		memset(&buf, 0, BUFSIZ);
-		n = read(conexion, buf, BUFSIZ); //Leer del socket
+		//leer del socket
+		n = read(conexion, buf, BUFSIZ); 
 		if (n <= 0) {
 			finalizacion = 1;
 		} else {

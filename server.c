@@ -143,7 +143,7 @@ void * transferencia(void * conexion) {
 		if (n <= 0) {
 			finalizacion = 1;
 		} else {
-			bytesEscritos = write(descriptorArchivo, &buf, BUFSIZ);
+			bytesEscritos = write(descriptorArchivo, &buf, n);
 		}
 	}
 	close(descriptorArchivo);
